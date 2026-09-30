@@ -1,93 +1,171 @@
-# เพื่อนคู่ใจ × LINE — คู่มือติดตั้ง
+# House Price MLOps
 
-โปรเจกต์นี้มี 2 ส่วน:
+ระบบทำนายราคาบ้านแบบครบวงจร MLOps: ฝึกโมเดลและบันทึกผลด้วย MLflow → ลงทะเบียนโมเดล → เสิร์ฟผ่าน FastAPI ใน Docker → CI/CD ด้วย GitHub Actions → จำลองการ monitoring
+
+> โปรเจกต์นี้ใช้ข้อมูลจำลอง (synthetic data) ที่สร้างในโค้ด ราคาที่ทำนายจึงไม่ใช่ราคาตลาดจริง
+
+## สถาปัตยกรรม
 
 ```
-liff-app/     หน้าเว็บแอป (LIFF) — สิ่งที่ผู้ใช้เห็นเมื่อเปิดแอป
-line-bot/     เซิร์ฟเวอร์บอท (Messaging API) — ส่งลิงก์ให้เปิดแอป
+src/train.py ──► MLflow (tracking + registry) ──► model/model.joblib
+                                                        │
+                                                        ▼
+tests/ (pytest) ◄── GitHub Actions ──► Docker image ◄── src/app.py (FastAPI)
+                                                        │
+                                          scripts/simulate_traffic.py (monitoring)
 ```
 
-เนื่องจากคุณมี Channel/Provider ของ LINE พร้อมอยู่แล้ว ให้ทำตามลำดับนี้ครับ
+## โครงสร้างโปรเจกต์
 
----
-
-## ขั้นตอนที่ 1 — โฮสต์หน้าเว็บแอป (LIFF)
-
-LIFF **ต้อง**ชี้ไปที่ URL ที่เป็น HTTPS จริงเท่านั้น (โฮสต์ในนี้ไม่ได้)
-เลือกวิธีใดวิธีหนึ่ง เช่น:
-
-- **Netlify / Vercel**: ลาก-วางโฟลเดอร์ `liff-app` ขึ้นไป (ฟรี, ได้ HTTPS ทันที)
-- **GitHub Pages**
-- เซิร์ฟเวอร์ของหน่วยงานคุณเอง
-
-จดที่อยู่ที่ได้ เช่น `https://phuean-app.netlify.app`
-
----
-
-## ขั้นตอนที่ 2 — สร้าง LIFF app ใน LINE Developers Console
-
-1. เข้า https://developers.line.biz/console/ > เลือก Provider > เลือก Channel (Messaging API channel เดิมของคุณ)
-2. ไปแท็บ **LIFF** > กด **Add**
-3. กรอก:
-   - LIFF app name: `เพื่อนคู่ใจ`
-   - Size: `Full`
-   - Endpoint URL: URL จากขั้นตอนที่ 1 (เช่น `https://phuean-app.netlify.app`)
-   - Scope: เลือก `profile` (สำหรับดึงชื่อ/รูป) และ `openid`
-4. กด Add แล้วคัดลอก **LIFF ID** ที่ได้ (รูปแบบ `1234567890-abcdEFGH`)
-
-จากนั้นเปิดไฟล์ `liff-app/index.html` หาบรรทัด:
-```js
-const LIFF_ID = "YOUR_LIFF_ID";
 ```
-แก้เป็น LIFF ID ที่คัดลอกมา แล้วอัปโหลดไฟล์ขึ้นโฮสต์อีกครั้ง
+.github/workflows/ci-cd.yml   # CI/CD: train -> test -> build -> deploy (จำลอง)
+src/train.py                  # เทรน 2 โมเดล, log MLflow, register, export โมเดล
+src/app.py                    # FastAPI: /health, /predict, /metrics
+tests/                        # pytest สำหรับ API
+scripts/simulate_traffic.py   # ยิง request จำลองเพื่อวัด latency/error
+Dockerfile                    # build image ของ API
+requirements.txt              # dependencies สำหรับเทรน + ทดสอบ
+requirements-api.txt          # dependencies สำหรับ API (ใช้ใน Docker)
+```
 
-ทดสอบ: เปิดลิงก์ `https://liff.line.me/<LIFF_ID>` ผ่าน LINE บนมือถือ ควรเห็นหน้าแอปพร้อมชื่อคุณขึ้นทักทาย
+## เริ่มต้นใช้งาน
 
----
+```bash
+python -m venv venv
+venv\Scripts\activate          # Windows  (macOS/Linux: source venv/bin/activate)
+pip install -r requirements.txt
+```
 
-## ขั้นตอนที่ 3 — ตั้งค่าบอท (Messaging API)
+### 1) เทรนโมเดลและบันทึกลง MLflow
 
-1. ในแชนแนลเดียวกัน ไปแท็บ **Messaging API**
-2. คัดลอก **Channel secret** (อยู่แท็บ Basic settings) และออก **Channel access token** (long-lived) ในแท็บ Messaging API
-3. ในเครื่อง/เซิร์ฟเวอร์ที่จะรันบอท:
-   ```bash
-   cd line-bot
-   npm install
-   cp .env.example .env
-   ```
-4. เปิดไฟล์ `.env` แล้วใส่ค่า:
-   ```
-   LINE_CHANNEL_ACCESS_TOKEN=<ที่คัดลอกมา>
-   LINE_CHANNEL_SECRET=<ที่คัดลอกมา>
-   LIFF_URL=https://liff.line.me/<LIFF_ID>
-   ```
-5. รันเซิร์ฟเวอร์:
-   ```bash
-   npm start
-   ```
-   (ระหว่างทดสอบในเครื่อง ใช้ `ngrok http 3000` เพื่อได้ URL สาธารณะชั่วคราว)
+```bash
+python src/train.py
+```
 
-6. กลับไปที่ LINE Developers Console > แท็บ Messaging API > **Webhook URL** ใส่:
-   ```
-   https://<your-domain>/webhook
-   ```
-   แล้วกด **Verify** ให้ขึ้นสำเร็จ และเปิดสวิตช์ **Use webhook**
+สคริปต์จะ:
 
-7. ปิด **Auto-reply messages** และ **Greeting messages** ในแท็บ Messaging API (เพื่อให้บอทของเราตอบเองแทน)
+- สร้างข้อมูลจำลอง 3,000 แถว แล้วแบ่ง train/test 80/20
+- เทรน 2 อัลกอริทึม คือ **Linear Regression** และ **Random Forest** (200 ต้นไม้, max_depth 12)
+- บันทึก params และ metrics (RMSE, MAE, R²) ของทั้งสองโมเดลลง MLflow
+- เลือกโมเดลที่ **RMSE ต่ำสุด** ลงทะเบียนเป็น `house-price-model` (version 1) และตั้ง alias `production`
+- export โมเดลไว้ที่ `model/` (`model.joblib`, `metadata.json`, `baseline_stats.json`)
 
----
+ดูผลใน MLflow UI (ข้อมูลเก็บใน `mlflow.db` จึงต้องระบุ backend ให้ตรง):
 
-## ทดสอบทั้งระบบ
+```bash
+mlflow ui --backend-store-uri sqlite:///mlflow.db
+```
 
-1. แอดบอทเป็นเพื่อนใน LINE ด้วย QR code หรือ LINE ID ที่อยู่ในแท็บ Messaging API
-2. บอทควรทักทายพร้อมปุ่ม "💗 เปิดแอป เพื่อนคู่ใจ" ทันที (follow event)
-3. พิมพ์อะไรก็ได้ในแชท บอทควรตอบปุ่มเปิดแอปกลับมาเสมอ
-4. กดปุ่ม → แอปควรเปิดขึ้นในแอป LINE พร้อมชื่อของคุณที่หน้าแรก
+จากนั้นเปิด <http://127.0.0.1:5000> หน้า **Experiments** ใช้เปรียบเทียบ run และหน้า **Models** ดูโมเดลที่ลงทะเบียน
 
----
+**ผลการเปรียบเทียบโมเดล** (ใส่ตัวเลขจากการรันของคุณ)
 
-## ปรับแต่งต่อได้
+| Model | RMSE (THB) | MAE (THB) | R² |
+|-------|-----------:|----------:|---:|
+| Linear Regression | 1,051,824 | 762,652 | 0.9229 |
+| Random Forest | **504,091** | **362,996** | **0.9823** |
 
-- เปลี่ยนข้อความ/ปุ่มในบอท: แก้ที่ `line-bot/server.js` ฟังก์ชัน `openAppButtonMessage`
-- อยากให้กด "บันทึกอารมณ์" แล้วส่งข้อความกลับเข้าแชทจริง ๆ: ใน `liff-app/index.html` มีโค้ดตัวอย่างคอมเมนต์ไว้ในฟังก์ชัน `selectMood()` (ใช้ `liff.sendMessages`)
-- อยากเก็บข้อมูลกิจกรรม/คะแนนแบบถาวร: ต้องต่อฐานข้อมูล (เช่น Firebase, Supabase) แทนการใช้ `alert()` — บอกมาได้เลยถ้าต้องการให้ช่วยต่อส่วนนี้ครับ
+โมเดลที่ถูกเลือก: **Random Forest** (RMSE ต่ำกว่า Linear Regression ประมาณ 52%) ซึ่งสมเหตุสมผล เพราะข้อมูลจำลองมีความสัมพันธ์ที่ไม่เป็นเส้นตรง เช่น ราคาต่อ ตร.ม. ต่างกันตามทำเล และมีผลของอายุบ้าน
+
+โมเดลถูกลงทะเบียนเป็น `house-price-model` และตั้ง alias `production` (เลขเวอร์ชันเพิ่มขึ้นทุกครั้งที่รัน `train.py` ในฐานข้อมูล MLflow เดิม เช่น รันครั้งที่สองจะได้ v2 ส่วนบน CI ที่เริ่มจากฐานข้อมูลว่างจะได้ v1)
+
+### 2) รัน API
+
+```bash
+uvicorn src.app:app --port 8000
+```
+
+เอกสาร API แบบโต้ตอบอยู่ที่ <http://127.0.0.1:8000/docs>
+
+| Endpoint | Method | คำอธิบาย |
+|----------|--------|----------|
+| `/health` | GET | สถานะระบบและเวอร์ชันโมเดล |
+| `/predict` | POST | ทำนายราคาบ้าน |
+| `/metrics` | GET | จำนวน request และ latency เฉลี่ย |
+
+**Input ของ `/predict`**
+
+| Field | ชนิด | เงื่อนไข |
+|-------|------|----------|
+| `area_sqm` | float | มากกว่า 10 และน้อยกว่า 2000 |
+| `bedrooms` | int | 1–10 |
+| `bathrooms` | int | 1–10 (ค่าเริ่มต้น 1) |
+| `age_years` | int | 0–100 (ค่าเริ่มต้น 0) |
+| `location` | string | `city_center`, `suburb` หรือ `rural` |
+
+**ตัวอย่าง request (PowerShell)**
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/predict -ContentType "application/json" -Body '{"area_sqm":120,"bedrooms":3,"bathrooms":2,"age_years":5,"location":"suburb"}'
+```
+
+**ตัวอย่าง request (curl บน macOS/Linux)**
+
+```bash
+curl -X POST http://127.0.0.1:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"area_sqm":120,"bedrooms":3,"bathrooms":2,"age_years":5,"location":"suburb"}'
+```
+
+**ตัวอย่าง response**
+
+```json
+{
+  "predicted_price": 6223000.0,
+  "currency": "THB",
+  "model_name": "house-price-model",
+  "model_version": "1"
+}
+```
+
+ถ้าส่งค่าที่ไม่ตรงเงื่อนไข (เช่น `location` ที่ไม่รองรับ) API จะตอบ `422 Unprocessable Entity` พร้อมบอกว่า field ไหนผิด ทุก request ที่ทำนายสำเร็จจะถูกบันทึกลง `logs/predictions.jsonl` เพื่อใช้ monitoring
+
+### 3) รันด้วย Docker
+
+ต้องเทรนโมเดลก่อน เพื่อให้มีโฟลเดอร์ `model/`
+
+```bash
+python src/train.py
+docker build -t house-price-api .
+docker run -p 8000:8000 house-price-api
+```
+
+## ทดสอบ
+
+```bash
+pytest -v
+```
+
+## CI/CD (GitHub Actions)
+
+ไฟล์ `.github/workflows/ci-cd.yml` ทำงานทุกครั้งที่ push ประกอบด้วย 3 job
+
+1. **test**: ติดตั้ง dependencies → เทรนโมเดลและ register ใน MLflow → รัน `pytest` → อัปโหลดโฟลเดอร์ `model/` เป็น artifact
+2. **build**: ดาวน์โหลดโมเดล → build Docker image → smoke test (เรียก `/health` และ `/predict` จาก container จริง) → บันทึก image เป็น artifact
+3. **deploy** (เฉพาะ branch `main`): **จำลอง**การ deploy ไปยัง environment `staging` โดยพิมพ์ขั้นตอนที่จะเกิดขึ้นบนคลาวด์ (Azure Container Apps / AWS ECS / GCP Cloud Run) ไม่ได้เชื่อมต่อบัญชีคลาวด์จริง
+
+## Monitoring
+
+`scripts/simulate_traffic.py` สุ่มข้อมูลบ้านส่งเข้า `/predict` แล้วสรุป error, latency และช่วงราคาที่ทำนาย
+
+```bash
+pip install requests
+python scripts/simulate_traffic.py --n 200
+```
+
+ผลจากการรันจริง (200 requests บนเครื่อง local)
+
+| ตัวชี้วัด | ค่า |
+|-----------|-----|
+| Errors | 0 (0.0%) |
+| Latency เฉลี่ย | 77.7 ms |
+| Latency p95 | 148.3 ms |
+| ราคาที่ทำนาย (ต่ำสุด / เฉลี่ย / สูงสุด) | 1,317,000 / 9,834,220 / 25,788,000 THB |
+
+ระหว่างพัฒนา สคริปต์นี้ช่วยจับความไม่ตรงกันของ input ได้ด้วย เช่น ตอนแรกส่งชื่อ field และค่า `location` ผิด API ปฏิเสธด้วย 422 ตามที่ออกแบบไว้
+
+## แนวทางต่อยอด
+
+- ใช้ `model/baseline_stats.json` (ค่าเฉลี่ยและส่วนเบี่ยงเบนมาตรฐานของข้อมูลเทรน) เปรียบเทียบกับข้อมูลใน `logs/predictions.jsonl` เพื่อตรวจ data drift
+- เพิ่มเงื่อนไขใน CI ให้ล้มเหลวเมื่อ RMSE แย่กว่าเกณฑ์ที่กำหนด
+- deploy ขึ้นคลาวด์จริงและเพิ่ม environment `production` ที่ต้องอนุมัติก่อน deploy
