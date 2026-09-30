@@ -1,0 +1,64 @@
+name: CI/CD - House Price Model
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Train model (log to MLflow + register)
+        run: python src/train.py
+      - name: Unit tests
+        run: pytest -v
+      - name: Upload model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: model
+          path: model/
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: model
+          path: model/
+      - name: Build Docker image
+        run: docker build -t house-price-api:${{ github.sha }} .
+      - name: Smoke test container
+        run: |
+          docker run -d --name api -p 8000:8000 house-price-api:${{ github.sha }}
+          for i in $(seq 1 20); do curl -sf localhost:8000/health && break || sleep 2; done
+          curl -sf -X POST localhost:8000/predict -H "Content-Type: application/json" \
+            -d '{"area_sqm":120,"bedrooms":3,"bathrooms":2,"age_years":5,"location":"suburb"}'
+      - name: Save image
+        run: docker save house-price-api:${{ github.sha }} | gzip > image.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: image.tar.gz
+
+  deploy:
+    # จำลองการ deploy บนคลาวด์ (ไม่ต้องมีบัญชีคลาวด์จริง)
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Simulated cloud deploy
+        run: |
+          echo "[SIMULATION] Pushing image to registry: <registry>/house-price-api:${{ github.sha }}"
+          echo "[SIMULATION] Deploying to staging (Azure Container Apps / AWS ECS / GCP Cloud Run)"
+          sleep 3
+          echo "[SIMULATION] Deployed. Health check passed."
