@@ -1,0 +1,6 @@
+{
+  "model_name": "house-price-model",
+  "version": "1",
+  "algorithm": "random_forest",
+  "rmse": 504090.7693765016
+}
