@@ -15,16 +15,17 @@ MODEL_DIR = Path(os.getenv("MODEL_DIR", Path(__file__).resolve().parent.parent /
 LOG_FILE = Path(os.getenv("PRED_LOG", "logs/predictions.jsonl"))
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
-# เชื่อมต่อ Supabase (ถ้าไม่ได้ตั้ง env var จะข้ามการ log ขึ้นคลาวด์)
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-sb = None
-if SUPABASE_URL and SUPABASE_KEY:
+# เชื่อมต่อ Firebase Firestore (อ่านคีย์จาก env var FIREBASE_CREDENTIALS)
+db = None
+_cred_json = os.getenv("FIREBASE_CREDENTIALS")
+if _cred_json:
     try:
-        from supabase import create_client
-        sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+        import firebase_admin
+        from firebase_admin import credentials, firestore
+        firebase_admin.initialize_app(credentials.Certificate(json.loads(_cred_json)))
+        db = firestore.client()
     except Exception as e:
-        print("SUPABASE INIT ERROR:", e)
+        print("FIREBASE INIT ERROR:", e)
 
 app = FastAPI(title="House Price Prediction API", version="1.0.0")
 state = {"model": None, "meta": {}, "n_requests": 0, "total_latency_ms": 0.0}
@@ -53,7 +54,7 @@ def home():
 def health():
     return {"status": "ok", "model_loaded": state["model"] is not None,
             "model_version": state["meta"].get("version"),
-            "supabase_connected": sb is not None}
+            "firebase_connected": db is not None}
 
 
 @app.post("/predict")
@@ -76,10 +77,11 @@ def predict(f: HouseFeatures):
     except OSError:
         pass
 
-    # log ขึ้น Supabase (cloud)
-    if sb is not None:
+    # log ขึ้น Firebase (cloud)
+    if db is not None:
         try:
-            sb.table("prediction_logs").insert({
+            db.collection("prediction_logs").add({
+                "created_at": firestore.SERVER_TIMESTAMP,
                 "area_sqm": f.area_sqm,
                 "bedrooms": f.bedrooms,
                 "bathrooms": f.bathrooms,
@@ -88,9 +90,9 @@ def predict(f: HouseFeatures):
                 "predicted_price": price,
                 "latency_ms": latency,
                 "model_version": state["meta"].get("version"),
-            }).execute()
+            })
         except Exception as e:
-            print("SUPABASE LOG ERROR:", e)
+            print("FIREBASE LOG ERROR:", e)
 
     return {"predicted_price": round(price, -3), "currency": "THB",
             "model_name": state["meta"].get("model_name"),
