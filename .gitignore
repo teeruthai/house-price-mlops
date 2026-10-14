@@ -4,3 +4,9 @@ mlflow.db
 logs/
 __pycache__/
 .pytest_cache/
+.venv/
+.env
+logs/
+.venv/
+.env
+logs/

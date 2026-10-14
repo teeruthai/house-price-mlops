@@ -8,10 +8,12 @@ from typing import Literal
 import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse  # เพิ่ม
 from pydantic import BaseModel, Field
 
 MODEL_DIR = Path(os.getenv("MODEL_DIR", Path(__file__).resolve().parent.parent / "model"))
 LOG_FILE = Path(os.getenv("PRED_LOG", "logs/predictions.jsonl"))
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"  # เพิ่ม
 
 app = FastAPI(title="House Price Prediction API", version="1.0.0")
 state = {"model": None, "meta": {}, "n_requests": 0, "total_latency_ms": 0.0}
@@ -29,6 +31,11 @@ class HouseFeatures(BaseModel):
 def load_model():
     state["model"] = joblib.load(MODEL_DIR / "model.joblib")
     state["meta"] = json.loads((MODEL_DIR / "metadata.json").read_text())
+
+
+@app.get("/", include_in_schema=False)  # เพิ่ม: หน้าเว็บสำหรับผู้ใช้
+def home():
+    return FileResponse(WEB_DIR / "index.html")
 
 
 @app.get("/health")

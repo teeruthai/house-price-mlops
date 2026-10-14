@@ -1,105 +1,304 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ทำนายราคาบ้าน</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { font-family: system-ui, "Noto Sans Thai", sans-serif; background: #f3f5f9;
-           margin: 0; padding: 24px; color: #1f2937; }
-    .card { max-width: 460px; margin: 0 auto; background: #fff; padding: 28px;
-            border-radius: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.08); }
-    h1 { margin: 0 0 4px; font-size: 1.5rem; }
-    p.sub { margin: 0 0 20px; color: #6b7280; font-size: .9rem; }
-    label { display: block; margin: 14px 0 6px; font-weight: 600; font-size: .9rem; }
-    input, select { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db;
-                    border-radius: 8px; font-size: 1rem; }
-    button { width: 100%; margin-top: 22px; padding: 12px; border: 0; border-radius: 8px;
-             background: #2563eb; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; }
-    button:disabled { background: #93c5fd; cursor: wait; }
-    #result { margin-top: 20px; padding: 16px; border-radius: 8px; display: none; }
-    #result.ok { display: block; background: #ecfdf5; border: 1px solid #10b981; }
-    #result.err { display: block; background: #fef2f2; border: 1px solid #ef4444; color: #b91c1c; }
-    #price { font-size: 1.8rem; font-weight: 700; color: #047857; }
-    small { color: #6b7280; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ประเมินราคาบ้าน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #14233b;
+    --muted: #5b6b82;
+    --paper: #eef3f8;
+    --card: #ffffff;
+    --line: #d3dce8;
+    --brand: #1d4ed8;
+    --brand-dark: #1e3a8a;
+    --sun: #f5b82e;
+    --error: #b42318;
+    --error-bg: #fdecea;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: "Sarabun", system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: -1px -1px;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+  .wrap {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 20px 56px;
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+  header { grid-column: 1 / -1; }
+  h1 {
+    font-family: "Prompt", sans-serif;
+    font-weight: 700;
+    font-size: clamp(28px, 5vw, 40px);
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  header p { margin: 0; color: var(--muted); font-size: 17px; }
+
+  .panel {
+    background: var(--card);
+    border: 1.5px solid var(--ink);
+    border-radius: 10px;
+    padding: 24px;
+    box-shadow: 6px 6px 0 var(--ink);
+  }
+  fieldset { border: 0; padding: 0; margin: 0 0 22px; }
+  legend, label.lbl {
+    font-family: "Prompt", sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    padding: 0;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .hint { color: var(--muted); font-size: 14px; font-weight: 400; margin-left: 6px; }
+
+  input[type=number] {
+    width: 100%;
+    font: inherit;
+    font-size: 18px;
+    padding: 11px 14px;
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+  }
+  input[type=number]:focus { outline: 3px solid var(--sun); outline-offset: 1px; border-color: var(--ink); }
+  .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 22px; }
+  .row .field { min-width: 0; }
+  .area-field { margin-bottom: 22px; }
+  .unit { position: relative; }
+  .unit span {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--muted); pointer-events: none; font-size: 15px;
+  }
+  .unit input { padding-right: 56px; }
+
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 12px 6px;
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    text-align: center;
+    background: #fff;
+  }
+  .seg label small { color: var(--muted); font-weight: 400; font-size: 13px; line-height: 1.3; }
+  .seg svg { width: 34px; height: 34px; stroke: var(--ink); fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .seg input:checked + label { border-color: var(--ink); background: #fff7df; box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .seg input:focus-visible + label { outline: 3px solid var(--sun); outline-offset: 2px; }
+
+  button.go {
+    width: 100%;
+    font-family: "Prompt", sans-serif;
+    font-weight: 600;
+    font-size: 18px;
+    padding: 14px;
+    color: #fff;
+    background: var(--brand);
+    border: 1.5px solid var(--ink);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button.go:hover { background: var(--brand-dark); }
+  button.go:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+  button.go:disabled { opacity: .65; cursor: wait; }
+
+  .result { position: sticky; top: 20px; }
+  .result h2 { font-family: "Prompt", sans-serif; font-size: 16px; font-weight: 600; margin: 0 0 14px; color: var(--muted); }
+  .empty { color: var(--muted); margin: 0; }
+  .price {
+    font-family: "Prompt", sans-serif;
+    font-weight: 700;
+    font-size: clamp(36px, 6vw, 52px);
+    line-height: 1.1;
+    margin: 0;
+    background: linear-gradient(transparent 62%, var(--sun) 62%, var(--sun) 92%, transparent 92%);
+    display: inline;
+    word-break: break-all;
+  }
+  .price-unit { font-family: "Prompt", sans-serif; font-weight: 500; font-size: 20px; margin-left: 8px; }
+  .summary { margin: 18px 0 0; padding: 0; list-style: none; border-top: 1.5px solid var(--line); }
+  .summary li { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .summary li span:first-child { color: var(--muted); }
+  .meta { margin: 14px 0 0; color: var(--muted); font-size: 13px; }
+  .err { background: var(--error-bg); color: var(--error); border-radius: 8px; padding: 12px 14px; margin: 0; }
+  .pop { animation: pop .35s ease-out; }
+  @keyframes pop { from { transform: scale(.96); opacity: .4; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .pop { animation: none; } }
+
+  @media (max-width: 760px) {
+    .wrap { grid-template-columns: 1fr; padding-top: 28px; }
+    .result { position: static; }
+    .row { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  @media (max-width: 420px) { .row { grid-template-columns: 1fr 1fr; } .row .field:last-child { grid-column: 1 / -1; } }
+</style>
 </head>
 <body>
-  <div class="card">
-    <h1>🏠 ทำนายราคาบ้าน</h1>
-    <p class="sub">กรอกข้อมูลบ้านเพื่อประเมินราคา</p>
+<div class="wrap">
+  <header>
+    <h1>ประเมินราคาบ้าน</h1>
+    <p>กรอกข้อมูลบ้านของคุณ แล้วกดปุ่มเพื่อดูราคาประเมิน</p>
+  </header>
 
-    <form id="form">
-      <label for="area_sqm">พื้นที่ใช้สอย (ตร.ม.)</label>
-      <input type="number" id="area_sqm" value="85" min="11" max="1999" step="any" required>
+  <form class="panel" id="form" novalidate>
+    <div class="area-field">
+      <label class="lbl" for="area">พื้นที่ใช้สอย<span class="hint">ระหว่าง 10 ถึง 2,000 ตร.ม.</span></label>
+      <div class="unit">
+        <input type="number" id="area" inputmode="decimal" min="10" max="2000" step="any" value="120" required>
+        <span>ตร.ม.</span>
+      </div>
+    </div>
 
-      <label for="bedrooms">จำนวนห้องนอน</label>
-      <input type="number" id="bedrooms" value="2" min="1" max="10" required>
+    <div class="row">
+      <div class="field">
+        <label class="lbl" for="bedrooms">ห้องนอน</label>
+        <input type="number" id="bedrooms" inputmode="numeric" min="1" max="10" step="1" value="3" required>
+      </div>
+      <div class="field">
+        <label class="lbl" for="bathrooms">ห้องน้ำ</label>
+        <input type="number" id="bathrooms" inputmode="numeric" min="1" max="10" step="1" value="2" required>
+      </div>
+      <div class="field">
+        <label class="lbl" for="age">อายุบ้าน (ปี)</label>
+        <input type="number" id="age" inputmode="numeric" min="0" max="100" step="1" value="5" required>
+      </div>
+    </div>
 
-      <label for="bathrooms">จำนวนห้องน้ำ</label>
-      <input type="number" id="bathrooms" value="1" min="1" max="10" required>
+    <fieldset>
+      <legend>ทำเลที่ตั้ง</legend>
+      <div class="seg">
+        <input type="radio" name="location" id="loc1" value="city_center" checked>
+        <label for="loc1">
+          <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 36V10h12v26M18 36V18h10v18M28 36V24h6v12M3 36h34M10 15h4M10 21h4M10 27h4"/></svg>
+          กลางเมือง<small>ใกล้ย่านธุรกิจ</small>
+        </label>
+        <input type="radio" name="location" id="loc2" value="suburb">
+        <label for="loc2">
+          <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M5 20 20 8l15 12M9 17v18h22V17M17 35v-9h6v9"/></svg>
+          ชานเมือง<small>ย่านที่อยู่อาศัย</small>
+        </label>
+        <input type="radio" name="location" id="loc3" value="rural">
+        <label for="loc3">
+          <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M4 34h32M8 34l9-16 6 10 4-6 7 12M29 9a3 3 0 1 1 0 .1"/></svg>
+          ชนบท<small>ห่างตัวเมือง</small>
+        </label>
+      </div>
+    </fieldset>
 
-      <label for="age_years">อายุบ้าน (ปี)</label>
-      <input type="number" id="age_years" value="5" min="0" max="100" required>
+    <button type="submit" class="go" id="btn">ดูราคาประเมิน</button>
+  </form>
 
-      <label for="location">ทำเล</label>
-      <select id="location">
-        <option value="city_center">ใจกลางเมือง</option>
-        <option value="suburb">ชานเมือง</option>
-        <option value="rural">ชนบท</option>
-      </select>
+  <section class="panel result" aria-live="polite" id="result">
+    <h2>ราคาประเมิน</h2>
+    <p class="empty">กรอกข้อมูลทางซ้าย แล้วกด “ดูราคาประเมิน” ผลจะแสดงตรงนี้</p>
+  </section>
+</div>
 
-      <button type="submit" id="btn">ทำนายราคา</button>
-    </form>
+<script>
+  // ปรับหน่วยเงินตรงนี้ให้ตรงกับข้อมูลที่ใช้เทรนโมเดล
+  const CURRENCY = "บาท";
+  // ถ้าเปิดไฟล์นี้ตรงๆ (file://) ให้ยิงไปที่เซิร์ฟเวอร์ในเครื่อง
+  const API_BASE = location.protocol === "file:" ? "http://localhost:8000" : "";
 
-    <div id="result"></div>
-  </div>
+  const LOC_NAME = { city_center: "กลางเมือง", suburb: "ชานเมือง", rural: "ชนบท" };
+  const form = document.getElementById("form");
+  const btn = document.getElementById("btn");
+  const box = document.getElementById("result");
 
-  <script>
-    const form = document.getElementById("form");
-    const btn = document.getElementById("btn");
-    const result = document.getElementById("result");
+  function show(html, animate) {
+    box.innerHTML = "<h2>ราคาประเมิน</h2>" + html;
+    if (animate) box.querySelector(".price")?.classList.add("pop");
+  }
+  function showError(msg) { show('<p class="err">' + msg + "</p>"); }
 
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      btn.disabled = true;
-      btn.textContent = "กำลังคำนวณ...";
-      result.className = "";
+  function checkInputs(d) {
+    if (!(d.area_sqm > 10 && d.area_sqm < 2000)) return "พื้นที่ใช้สอยต้องมากกว่า 10 และน้อยกว่า 2,000 ตร.ม.";
+    if (!Number.isInteger(d.bedrooms) || d.bedrooms < 1 || d.bedrooms > 10) return "จำนวนห้องนอนต้องเป็นเลข 1 ถึง 10";
+    if (!Number.isInteger(d.bathrooms) || d.bathrooms < 1 || d.bathrooms > 10) return "จำนวนห้องน้ำต้องเป็นเลข 1 ถึง 10";
+    if (!Number.isInteger(d.age_years) || d.age_years < 0 || d.age_years > 100) return "อายุบ้านต้องเป็นเลข 0 ถึง 100 ปี";
+    return null;
+  }
 
-      const payload = {
-        area_sqm: parseFloat(document.getElementById("area_sqm").value),
-        bedrooms: parseInt(document.getElementById("bedrooms").value),
-        bathrooms: parseInt(document.getElementById("bathrooms").value),
-        age_years: parseInt(document.getElementById("age_years").value),
-        location: document.getElementById("location").value,
-      };
+  function pickPrice(data) {
+    for (const k of ["predicted_price", "price", "prediction", "predicted"]) {
+      if (typeof data[k] === "number") return data[k];
+    }
+    for (const k in data) if (/price/i.test(k) && typeof data[k] === "number") return data[k];
+    return null;
+  }
 
-      try {
-        const res = await fetch("/predict", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          const msg = Array.isArray(data.detail)
-            ? data.detail.map(d => `${d.loc.slice(-1)[0]}: ${d.msg}`).join("<br>")
-            : (data.detail || "เกิดข้อผิดพลาด");
-          throw new Error(msg);
-        }
-        result.className = "ok";
-        result.innerHTML =
-          `<small>ราคาที่ประเมิน</small><div id="price">${data.predicted_price.toLocaleString("th-TH")} ${data.currency}</div>` +
-          `<small>โมเดล: ${data.model_name} (v${data.model_version})</small>`;
-      } catch (err) {
-        result.className = "err";
-        result.innerHTML = "❌ " + err.message;
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "ทำนายราคา";
-      }
-    });
-  </script>
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const payload = {
+      area_sqm: parseFloat(document.getElementById("area").value),
+      bedrooms: parseInt(document.getElementById("bedrooms").value, 10),
+      bathrooms: parseInt(document.getElementById("bathrooms").value, 10),
+      age_years: parseInt(document.getElementById("age").value, 10),
+      location: form.elements["location"].value,
+    };
+    const problem = checkInputs(payload);
+    if (problem) return showError(problem);
+
+    btn.disabled = true;
+    btn.textContent = "กำลังคำนวณ...";
+    try {
+      const res = await fetch(API_BASE + "/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.status === 503) throw new Error("เซิร์ฟเวอร์ยังโหลดโมเดลไม่เสร็จ ลองใหม่อีกครั้งในอีกสักครู่");
+      if (res.status === 422) throw new Error("ข้อมูลบางช่องไม่ถูกต้อง ตรวจสอบตัวเลขแล้วลองอีกครั้ง");
+      if (!res.ok) throw new Error("เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (รหัส " + res.status + ")");
+      const data = await res.json();
+      const price = pickPrice(data);
+      if (price === null) throw new Error("ได้รับคำตอบจากเซิร์ฟเวอร์ แต่ไม่พบตัวเลขราคา");
+
+      const fmt = (n) => Math.round(n).toLocaleString("th-TH");
+      show(
+        '<p style="margin:0"><span class="price">' + fmt(price) + '</span><span class="price-unit">' + CURRENCY + "</span></p>" +
+        '<ul class="summary">' +
+          "<li><span>พื้นที่ใช้สอย</span><span>" + payload.area_sqm.toLocaleString("th-TH") + " ตร.ม.</span></li>" +
+          "<li><span>ห้องนอน / ห้องน้ำ</span><span>" + payload.bedrooms + " / " + payload.bathrooms + "</span></li>" +
+          "<li><span>อายุบ้าน</span><span>" + payload.age_years + " ปี</span></li>" +
+          "<li><span>ทำเล</span><span>" + LOC_NAME[payload.location] + "</span></li>" +
+        "</ul>" +
+        '<p class="meta">เป็นราคาประเมินจากโมเดล ใช้เป็นแนวทางเท่านั้น</p>',
+        true
+      );
+    } catch (err) {
+      const offline = err instanceof TypeError;
+      showError(offline
+        ? "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจสอบว่ารัน uvicorn อยู่ แล้วลองอีกครั้ง"
+        : err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "ดูราคาประเมิน";
+    }
+  });
+</script>
 </body>
 </html>
